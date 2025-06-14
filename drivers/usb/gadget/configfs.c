@@ -21,7 +21,7 @@
 #include <linux/power_supply.h>
 
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
-extern int acc_ctrlrequest_composite(struct usb_composite_dev *cdev,
+extern int acc_ctrlrequest(struct usb_composite_dev *cdev,
 				const struct usb_ctrlrequest *ctrl);
 void acc_disconnect(void);
 #endif
@@ -92,6 +92,7 @@ struct gadget_info {
 	struct usb_composite_dev cdev;
 	bool use_os_desc;
 	bool unbinding;
+	bool isMSOS;
 	char b_vendor_code;
 	char qw_sign[OS_STRING_QW_SIGN_LEN];
 	spinlock_t spinlock;
@@ -148,28 +149,27 @@ struct gadget_config_name {
 	struct list_head list;
 };
 
-#define USB_MAX_STRING_WITH_NULL_LEN	(USB_MAX_STRING_LEN+1)
+#define MAX_USB_STRING_LEN	126
+#define MAX_USB_STRING_WITH_NULL_LEN	(MAX_USB_STRING_LEN+1)
+#define MSOS_VENDOR_TYPE 0x01
 
 static int usb_string_copy(const char *s, char **s_copy)
 {
 	int ret;
 	char *str;
 	char *copy = *s_copy;
-
 	ret = strlen(s);
-	if (ret > USB_MAX_STRING_LEN)
+	if (ret > MAX_USB_STRING_LEN)
 		return -EOVERFLOW;
-	if (ret < 1)
-		return -EINVAL;
 
 	if (copy) {
 		str = copy;
 	} else {
-		str = kmalloc(USB_MAX_STRING_WITH_NULL_LEN, GFP_KERNEL);
+		str = kmalloc(MAX_USB_STRING_WITH_NULL_LEN, GFP_KERNEL);
 		if (!str)
 			return -ENOMEM;
 	}
-	strcpy(str, s);
+	strlcpy(str, s, MAX_USB_STRING_WITH_NULL_LEN);
 	if (str[ret - 1] == '\n')
 		str[ret - 1] = '\0';
 	*s_copy = str;
@@ -281,16 +281,9 @@ static ssize_t gadget_dev_desc_bcdUSB_store(struct config_item *item,
 
 static ssize_t gadget_dev_desc_UDC_show(struct config_item *item, char *page)
 {
-	struct gadget_info *gi = to_gadget_info(item);
-	char *udc_name;
-	int ret;
+	char *udc_name = to_gadget_info(item)->composite.gadget_driver.udc_name;
 
-	mutex_lock(&gi->lock);
-	udc_name = gi->composite.gadget_driver.udc_name;
-	ret = sprintf(page, "%s\n", udc_name ?: "");
-	mutex_unlock(&gi->lock);
-
-	return ret;
+	return sprintf(page, "%s\n", udc_name ?: "");
 }
 
 static int unregister_gadget(struct gadget_info *gi)
@@ -317,9 +310,6 @@ static ssize_t gadget_dev_desc_UDC_store(struct config_item *item,
 	struct gadget_info *gi = to_gadget_info(item);
 	char *name;
 	int ret;
-
-	if (strlen(page) < len)
-		return -EOVERFLOW;
 
 	name = kstrdup(page, GFP_KERNEL);
 	if (!name)
@@ -1487,14 +1477,14 @@ static void android_work(struct work_struct *data)
 	if (status[0]) {
 		kobject_uevent_env(&gi->dev->kobj,
 					KOBJ_CHANGE, connected);
-		pr_info("%s: sent uevent %s\n", __func__, connected[0]);
+		pr_err("%s: sent uevent %s\n", __func__, connected[0]);
 		uevent_sent = true;
 	}
 
 	if (status[1]) {
 		kobject_uevent_env(&gi->dev->kobj,
 					KOBJ_CHANGE, configured);
-		pr_info("%s: sent uevent %s\n", __func__, configured[0]);
+		pr_err("%s: sent uevent %s\n", __func__, configured[0]);
 		uevent_sent = true;
 		smblib_canncel_recheck();
 	}
@@ -1502,12 +1492,14 @@ static void android_work(struct work_struct *data)
 	if (status[2]) {
 		kobject_uevent_env(&gi->dev->kobj,
 					KOBJ_CHANGE, disconnected);
-		pr_info("%s: sent uevent %s\n", __func__, disconnected[0]);
+		pr_err("%s: sent uevent %s\n", __func__, disconnected[0]);
 		uevent_sent = true;
+		gi->isMSOS = false;
+		cdev->isMSOS = false;
 	}
 
 	if (!uevent_sent) {
-		pr_info("%s: did not send uevent (%d %d %pK)\n", __func__,
+		pr_err("%s: did not send uevent (%d %d %pK)\n", __func__,
 			gi->connected, gi->sw_connected, cdev->config);
 	}
 }
@@ -1534,8 +1526,6 @@ static void configfs_composite_unbind(struct usb_gadget *gadget)
 	usb_ep_autoconfig_reset(cdev->gadget);
 	spin_lock_irqsave(&gi->spinlock, flags);
 	cdev->gadget = NULL;
-	cdev->deactivations = 0;
-	gadget->deactivated = false;
 	set_gadget_data(gadget, NULL);
 	spin_unlock_irqrestore(&gi->spinlock, flags);
 }
@@ -1643,6 +1633,13 @@ static int android_setup(struct usb_gadget *gadget,
 	int value = -EOPNOTSUPP;
 	struct usb_function_instance *fi;
 
+	if ((c->bRequestType & USB_TYPE_MASK) == USB_TYPE_VENDOR) {
+		if ((c->bRequest == MSOS_VENDOR_TYPE) &&
+			(c->bRequestType & USB_DIR_IN) && le16_to_cpu(c->wIndex == 4)) {
+			gi->isMSOS = true;
+			cdev->isMSOS = true;
+		}
+	}
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (!gi->connected) {
 		gi->connected = 1;
@@ -1672,7 +1669,7 @@ static int android_setup(struct usb_gadget *gadget,
 
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
 	if (value < 0)
-		value = acc_ctrlrequest_composite(cdev, c);
+		value = acc_ctrlrequest(cdev, c);
 #endif
 
 	if (value < 0)
@@ -1691,14 +1688,7 @@ static int android_setup(struct usb_gadget *gadget,
 static void android_disconnect(struct usb_gadget *gadget)
 {
 	struct usb_composite_dev        *cdev = get_gadget_data(gadget);
-	struct gadget_info *gi;
-
-	if (!cdev) {
-		pr_err("%s: gadget is not connected\n", __func__);
-		return;
-	}
-
-	gi = container_of(cdev, struct gadget_info, cdev);
+	struct gadget_info *gi = container_of(cdev, struct gadget_info, cdev);
 
 	/* FIXME: There's a race between usb_gadget_udc_stop() which is likely
 	 * to set the gadget driver to NULL in the udc driver and this drivers
@@ -1777,10 +1767,27 @@ out:
 	return sprintf(buf, "%s\n", state);
 }
 
+static ssize_t isMSOS_show(struct device *pdev, struct device_attribute *attr,
+		char *buf)
+{
+	struct gadget_info *dev = dev_get_drvdata(pdev);
+	int len = sizeof(buf);
+	bool isMSOS = false;
+
+	if (!dev)
+		goto out;
+
+	isMSOS = dev->isMSOS;
+out:
+	return snprintf(buf, len, "%d\n", isMSOS);
+}
+
 static DEVICE_ATTR(state, S_IRUGO, state_show, NULL);
+static DEVICE_ATTR(isMSOS, S_IRUGO, isMSOS_show, NULL);
 
 static struct device_attribute *android_usb_attributes[] = {
 	&dev_attr_state,
+	&dev_attr_isMSOS,
 	NULL
 };
 
@@ -1873,7 +1880,7 @@ static struct config_group *gadgets_make(
 	gi->composite.unbind = configfs_do_nothing;
 	gi->composite.suspend = NULL;
 	gi->composite.resume = NULL;
-	gi->composite.max_speed = USB_SPEED_SUPER_PLUS;
+	gi->composite.max_speed = USB_SPEED_SUPER;
 
 	spin_lock_init(&gi->spinlock);
 	mutex_init(&gi->lock);

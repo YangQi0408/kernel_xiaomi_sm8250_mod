@@ -43,7 +43,6 @@ config USB_PD_POLICY_DAGU
 	  PD PHY driver in order to transmit and receive PD
 	  messages on its behalf.
 
-
 config QPNP_USB_PDPHY
 	tristate "QPNP USB Power Delivery PHY"
 	depends on SPMI

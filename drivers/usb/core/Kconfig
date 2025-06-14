@@ -90,10 +90,3 @@ config USB_LEDS_TRIGGER_USBPORT
 	  This driver allows LEDs to be controlled by USB events. Enabling this
 	  trigger allows specifying list of USB ports that should turn on LED
 	  when some USB device gets connected.
-
-config USB_HUB_DISABLE
-	bool "CONFIG_USB_HUB_DISABLE"
-	default n
-	help
-	  The elish device is in dead sleep mode. 
-	  Temporarily block the hub to solve this problem.

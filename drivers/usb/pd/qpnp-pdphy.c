@@ -126,6 +126,13 @@ struct usb_pdphy {
 	unsigned int msg_rx_discarded_cnt;
 };
 
+#undef dev_dbg
+#define dev_dbg dev_err
+#undef pr_debug
+#define pr_debug pr_err
+#undef pr_info
+#define pr_info pr_err
+
 static struct usb_pdphy *__pdphy;
 
 static int pdphy_dbg_status(struct seq_file *s, void *p)
