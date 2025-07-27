@@ -12,7 +12,7 @@ GIT_COMMIT_ID=$(git rev-parse --short=8 HEAD)
 export CCACHE_DIR="$HOME/.cache/ccache_mikernel" 
 export CC="ccache gcc"
 export CXX="ccache g++"
-export PATH="/usr/lib/ccache:$TOOLCHAIN_PATH:$PATH"
+export PATH="/usr/lib/ccache/bin:$TOOLCHAIN_PATH:$PATH"
 echo "CCACHE_DIR: [$CCACHE_DIR]"
 
 MAKE_ARGS="AS=as ARCH=arm64 SUBARCH=arm64 O=out CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu-"
