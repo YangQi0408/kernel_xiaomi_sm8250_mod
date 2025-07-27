@@ -136,3 +136,9 @@ all.config
 kernel/configs/android-*.cfg
 
 out/
+
+anykernel*.zip
+
+anykernel
+
+KernelSU
