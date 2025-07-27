@@ -5,101 +5,21 @@
 # Ensure the script exits on error
 set -e
 
-TOOLCHAIN_PATH=$HOME/proton-clang/proton-clang-20210522/bin
+TOOLCHAIN_PATH=$HOME/toolchain/zyc-clang/bin
 GIT_COMMIT_ID=$(git rev-parse --short=8 HEAD)
-TARGET_DEVICE=$1
-
-if [ -z "$1" ]; then
-    echo "Error: No argument provided, please specific a target device." 
-    echo "If you need KernelSU, please add [ksu] as the second arg."
-    echo "Examples:"
-    echo "Build for lmi(K30 Pro/POCO F2 Pro) without KernelSU:"
-    echo "    bash build.sh lmi"
-    echo "Build for umi(Mi10) with KernelSU:"
-    echo "    bash build.sh umi ksu"
-    exit 1
-fi
-
-
-
-if [ ! -d $TOOLCHAIN_PATH ]; then
-    echo "TOOLCHAIN_PATH [$TOOLCHAIN_PATH] does not exist."
-    echo "Please ensure the toolchain is there, or change TOOLCHAIN_PATH in the script to your toolchain path."
-    exit 1
-fi
-
-echo "TOOLCHAIN_PATH: [$TOOLCHAIN_PATH]"
-export PATH="$TOOLCHAIN_PATH:$PATH"
-
-if ! command -v aarch64-linux-gnu-ld >/dev/null 2>&1; then
-    echo "[aarch64-linux-gnu-ld] does not exist, please check your environment."
-    exit 1
-fi
-
-if ! command -v arm-linux-gnueabi-ld >/dev/null 2>&1; then
-    echo "[arm-linux-gnueabi-ld] does not exist, please check your environment."
-    exit 1
-fi
-
-if ! command -v clang >/dev/null 2>&1; then
-    echo "[clang] does not exist, please check your environment."
-    exit 1
-fi
-
 
 # Enable ccache for speed up compiling 
 export CCACHE_DIR="$HOME/.cache/ccache_mikernel" 
 export CC="ccache gcc"
 export CXX="ccache g++"
-export PATH="/usr/lib/ccache:$PATH"
+export PATH="/usr/lib/ccache:$TOOLCHAIN_PATH:$PATH"
 echo "CCACHE_DIR: [$CCACHE_DIR]"
 
-
-MAKE_ARGS="ARCH=arm64 SUBARCH=arm64 O=out CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu-"
-
-
-if [ "$1" == "j1" ]; then
-    make $MAKE_ARGS -j1
-    exit
-fi
-
-if [ "$1" == "continue" ]; then
-    make $MAKE_ARGS -j$(nproc)
-    exit
-fi
-
-if [ ! -f "arch/arm64/configs/${TARGET_DEVICE}_defconfig" ]; then
-    echo "No target device [${TARGET_DEVICE}] found."
-    echo "Avaliable defconfigs, please choose one target from below down:"
-    ls arch/arm64/configs/*_defconfig
-    exit 1
-fi
-
+MAKE_ARGS="AS=as ARCH=arm64 SUBARCH=arm64 O=out CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu-"
 
 # Check clang is existing.
 echo "[clang --version]:"
 clang --version
-
-
-
-KSU_ZIP_STR=NoKernelSU
-if [ "$2" == "ksu" ]; then
-    KSU_ENABLE=1
-    KSU_ZIP_STR=SukiSU-SUSFS
-else
-    KSU_ENABLE=0
-fi
-
-
-echo "TARGET_DEVICE: $TARGET_DEVICE"
-
-if [ $KSU_ENABLE -eq 1 ]; then
-    echo "KSU is enabled"
-    curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU-Ultra/main/kernel/setup.sh" | bash -s f4863b20cc8dc0f8cc67418980f022e43014b598
-else
-    echo "KSU is disabled"
-fi
-
 
 echo "Cleaning..."
 
@@ -111,82 +31,64 @@ git clone https://github.com/liyafe1997/AnyKernel3 -b kona --single-branch --dep
 
 # Add date to local version
 local_version_str="-perf"
-local_version_date_str="-$(date +%Y%m%d)-${GIT_COMMIT_ID}-perf"
+local_version_date_str="-O2-$(date +%Y%m%d)-${GIT_COMMIT_ID}-perf"
 
-sed -i "s/${local_version_str}/${local_version_date_str}/g" arch/arm64/configs/${TARGET_DEVICE}_defconfig
+sed -i "s/${local_version_str}/${local_version_date_str}/g" arch/arm64/configs/enuma_defconfig
 
 # ------------- Building for AOSP -------------
 
-echo "Building for AOSP......"
-make $MAKE_ARGS ${TARGET_DEVICE}_defconfig
+# echo "Building for AOSP......"
+# make CC="ccache clang" CXX="ccache clang++" $MAKE_ARGS enuma_defconfig
 
-if [ $KSU_ENABLE -eq 1 ]; then
-    scripts/config --file out/.config \
-    -e KSU \
-    -e KSU_MANUAL_HOOK \
-    -e KSU_SUSFS_HAS_MAGIC_MOUNT \
-    -d KSU_SUSFS_SUS_PATH \
-    -e KSU_SUSFS_SUS_MOUNT \
-    -e KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT \
-    -e KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT \
-    -e KSU_SUSFS_SUS_KSTAT \
-    -d KSU_SUSFS_SUS_OVERLAYFS \
-    -e KSU_SUSFS_TRY_UMOUNT \
-    -e KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT \
-    -e KSU_SUSFS_SPOOF_UNAME \
-    -e KSU_SUSFS_ENABLE_LOG \
-    -e KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
-    -e KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG \
-    -d KSU_SUSFS_OPEN_REDIRECT \
-    -d KSU_SUSFS_SUS_SU \
-    -e KPM
-else
-    scripts/config --file out/.config -d KSU
-fi
+# scripts/config --file out/.config \
+#     -d CC_WERROR \
+#     -e KSU \
+#     -e KSU_MANUAL_HOOK \
+#     -e KSU_SUSFS_HAS_MAGIC_MOUNT \
+#     -e KSU_SUSFS \
+#     -e KPM
 
-make $MAKE_ARGS -j$(nproc)
+# make CC="ccache clang" CXX="ccache clang++" $MAKE_ARGS -j$(nproc)
 
 
-if [ -f "out/arch/arm64/boot/Image" ]; then
-    echo "The file [out/arch/arm64/boot/Image] exists. AOSP Build successfully."
-else
-    echo "The file [out/arch/arm64/boot/Image] does not exist. Seems AOSP build failed."
-    exit 1
-fi
+# if [ -f "out/arch/arm64/boot/Image" ]; then
+#     echo "The file [out/arch/arm64/boot/Image] exists. AOSP Build successfully."
+# else
+#     echo "The file [out/arch/arm64/boot/Image] does not exist. Seems AOSP build failed."
+#     exit 1
+# fi
 
-echo "Generating [out/arch/arm64/boot/dtb]......"
-find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
+# echo "Generating [out/arch/arm64/boot/dtb]......"
+# find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
 
-rm -rf anykernel/kernels/
+# rm -rf anykernel/kernels/
 
-mkdir -p anykernel/kernels/
+# mkdir -p anykernel/kernels/
 
-# Patch for SukiSU KPM support. 
-if [ $KSU_ENABLE -eq 1 ]; then
-    cd out/arch/arm64/boot/
-    wget https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
-    chmod +x patch_linux
-    ./patch_linux
-    rm Image
-    mv oImage Image
-    cd -
-fi
+# # Patch for SukiSU KPM support. 
+# cd out/arch/arm64/boot/
+# wget https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
+# chmod +x patch_linux
+# ./patch_linux
+# rm Image
+# mv oImage Image
+# cd -
 
-cp out/arch/arm64/boot/Image anykernel/kernels/
-cp out/arch/arm64/boot/dtb anykernel/kernels/
+# cp out/arch/arm64/boot/Image anykernel/kernels/
+# cp out/arch/arm64/boot/dtb anykernel/kernels/
 
-cd anykernel 
+# cd anykernel 
 
-ZIP_FILENAME=Kernel_AOSP_${TARGET_DEVICE}_${KSU_ZIP_STR}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip
+# ZIP_FILENAME=anykernel3_aosp_$(date +'%Y%m%d_%H%M%S')_${GIT_COMMIT_ID}.zip
 
-zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
+# zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
 
-mv $ZIP_FILENAME ../
+# mv $ZIP_FILENAME ../
 
-cd ..
+# cd ..
 
 
-echo "Build for AOSP finished."
+# echo "Build for AOSP finished."
 
 # ------------- End of Building for AOSP -------------
 #  If you don't need AOSP you can comment out the above block [Building for AOSP]
@@ -257,31 +159,15 @@ sed -i 's/\/\/39 01 00 00 01 00 03 51 03 FF/39 01 00 00 01 00 03 51 03 FF/g' ${d
 sed -i 's/\/\/39 01 00 00 11 00 03 51 03 FF/39 01 00 00 11 00 03 51 03 FF/g' ${dts_source}/dsi-panel-j2-p2-1-38-0c-0a-dsc-cmd.dtsi
 
 
-make $MAKE_ARGS ${TARGET_DEVICE}_defconfig
+make CC="ccache clang" CXX="ccache clang++" $MAKE_ARGS enuma_defconfig
 
-if [ $KSU_ENABLE -eq 1 ]; then
-    scripts/config --file out/.config \
+scripts/config --file out/.config \
+    -d CC_WERROR \
     -e KSU \
     -e KSU_MANUAL_HOOK \
     -e KSU_SUSFS_HAS_MAGIC_MOUNT \
-    -d KSU_SUSFS_SUS_PATH \
-    -e KSU_SUSFS_SUS_MOUNT \
-    -e KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT \
-    -e KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT \
-    -e KSU_SUSFS_SUS_KSTAT \
-    -d KSU_SUSFS_SUS_OVERLAYFS \
-    -e KSU_SUSFS_TRY_UMOUNT \
-    -e KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT \
-    -e KSU_SUSFS_SPOOF_UNAME \
-    -e KSU_SUSFS_ENABLE_LOG \
-    -e KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
-    -e KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG \
-    -d KSU_SUSFS_OPEN_REDIRECT \
-    -d KSU_SUSFS_SUS_SU \
+    -e KSU_SUSFS \
     -e KPM
-else
-    scripts/config --file out/.config -d KSU
-fi
 
 
 scripts/config --file out/.config \
@@ -313,9 +199,7 @@ scripts/config --file out/.config \
     -e MI_RECLAIM \
     -e RTMM \
 
-make $MAKE_ARGS -j$(nproc)
-
-
+make CC="ccache clang" CXX="ccache clang++" $MAKE_ARGS -j$(nproc)
 
 if [ -f "out/arch/arm64/boot/Image" ]; then
     echo "The file [out/arch/arm64/boot/Image] exists. MIUI Build successfully."
@@ -327,7 +211,6 @@ fi
 echo "Generating [out/arch/arm64/boot/dtb]......"
 find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
 
-
 # Restore modified dts
 rm -rf ${dts_source}
 mv .dts.bak ${dts_source}
@@ -336,15 +219,13 @@ rm -rf anykernel/kernels/
 mkdir -p anykernel/kernels/
 
 # Patch for SukiSU KPM support. 
-if [ $KSU_ENABLE -eq 1 ]; then
-    cd out/arch/arm64/boot/
-    wget https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
-    chmod +x patch_linux
-    ./patch_linux
-    rm Image
-    mv oImage Image
-    cd -
-fi
+cd out/arch/arm64/boot/
+wget https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
+chmod +x patch_linux
+./patch_linux
+rm Image
+mv oImage Image
+cd -
 
 cp out/arch/arm64/boot/Image anykernel/kernels/
 cp out/arch/arm64/boot/dtb anykernel/kernels/
@@ -352,7 +233,7 @@ cp out/arch/arm64/boot/dtb anykernel/kernels/
 echo "Build for MIUI finished."
 
 # Restore local version string
-sed -i "s/${local_version_date_str}/${local_version_str}/g" arch/arm64/configs/${TARGET_DEVICE}_defconfig
+sed -i "s/${local_version_date_str}/${local_version_str}/g" arch/arm64/configs/enuma_defconfig
 
 # ------------- End of Building for MIUI -------------
 #  If you don't need MIUI you can comment out the above block [Building for MIUI]
@@ -360,7 +241,7 @@ sed -i "s/${local_version_date_str}/${local_version_str}/g" arch/arm64/configs/$
 
 cd anykernel 
 
-ZIP_FILENAME=Kernel_MIUI_${TARGET_DEVICE}_${KSU_ZIP_STR}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip
+ZIP_FILENAME=anykernel3_miui_$(date +'%Y%m%d_%H%M%S')_${GIT_COMMIT_ID}.zip
 
 zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
 
