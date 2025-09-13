@@ -31,71 +31,14 @@ git clone https://github.com/liyafe1997/AnyKernel3 -b kona --single-branch --dep
 
 # Add date to local version
 local_version_str="-perf"
+
+if [ "$1" == "bpf" ]; then
+local_version_date_str="-O2-bpf-$(date +%Y%m%d)-${GIT_COMMIT_ID}-perf"
+else
 local_version_date_str="-O2-$(date +%Y%m%d)-${GIT_COMMIT_ID}-perf"
+fi
 
 sed -i "s/${local_version_str}/${local_version_date_str}/g" arch/arm64/configs/enuma_defconfig
-
-# ------------- Building for AOSP -------------
-
-# echo "Building for AOSP......"
-# make CC="ccache clang" CXX="ccache clang++" $MAKE_ARGS enuma_defconfig
-
-# scripts/config --file out/.config \
-#     -d CC_WERROR \
-#     -e KSU \
-#     -e KSU_MANUAL_HOOK \
-#     -e KSU_SUSFS_HAS_MAGIC_MOUNT \
-#     -e KSU_SUSFS \
-#     -e KPM
-
-# make CC="ccache clang" CXX="ccache clang++" $MAKE_ARGS -j$(nproc)
-
-
-# if [ -f "out/arch/arm64/boot/Image" ]; then
-#     echo "The file [out/arch/arm64/boot/Image] exists. AOSP Build successfully."
-# else
-#     echo "The file [out/arch/arm64/boot/Image] does not exist. Seems AOSP build failed."
-#     exit 1
-# fi
-
-# echo "Generating [out/arch/arm64/boot/dtb]......"
-# find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
-
-# rm -rf anykernel/kernels/
-
-# mkdir -p anykernel/kernels/
-
-# # Patch for SukiSU KPM support. 
-# cd out/arch/arm64/boot/
-# wget https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
-# chmod +x patch_linux
-# ./patch_linux
-# rm Image
-# mv oImage Image
-# cd -
-
-# cp out/arch/arm64/boot/Image anykernel/kernels/
-# cp out/arch/arm64/boot/dtb anykernel/kernels/
-
-# cd anykernel 
-
-# ZIP_FILENAME=anykernel3_aosp_$(date +'%Y%m%d_%H%M%S')_${GIT_COMMIT_ID}.zip
-
-# zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
-
-# mv $ZIP_FILENAME ../
-
-# cd ..
-
-
-# echo "Build for AOSP finished."
-
-# ------------- End of Building for AOSP -------------
-#  If you don't need AOSP you can comment out the above block [Building for AOSP]
-
-
-# ------------- Building for MIUI -------------
-
 
 echo "Clearning [out/] and build for MIUI....."
 rm -rf out/
@@ -241,7 +184,11 @@ sed -i "s/${local_version_date_str}/${local_version_str}/g" arch/arm64/configs/e
 
 cd anykernel 
 
+if [ "$1" == "bpf" ]; then
+ZIP_FILENAME=anykernel3_miui_bpf_$(date +'%Y%m%d_%H%M%S')_${GIT_COMMIT_ID}.zip
+else
 ZIP_FILENAME=anykernel3_miui_$(date +'%Y%m%d_%H%M%S')_${GIT_COMMIT_ID}.zip
+fi
 
 zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
 
