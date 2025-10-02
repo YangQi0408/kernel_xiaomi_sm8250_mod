@@ -987,6 +987,18 @@ int32_t nvt_update_firmware(const char *firmware_name)
 {
 	int32_t ret = 0;
 
+	if (firmware_name) {
+    	NVT_LOG("firmware_name is: %s\n", firmware_name);
+	} else {
+    	NVT_ERR("Provided firmware_name is NULL\n");
+	}
+
+	if (ts->fw_name) {
+		NVT_LOG("ts->fw_name is: %s\n", ts->fw_name);
+	} else {
+    	NVT_ERR("Global ts->fw_name is NULL\n");
+	}
+
 	// request bin file in "/etc/firmware"
 	ret = update_firmware_request(firmware_name);
 	if (ret) {

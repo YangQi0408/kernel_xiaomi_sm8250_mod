@@ -8,7 +8,8 @@ ifneq ($(KERNELRELEASE),)
 	nt36523_touch-y := nt36xxx.o \
 		nt36xxx_fw_update.o \
 		nt36xxx_ext_proc.o \
-		nt36xxx_mp_ctrlram.o
+		nt36xxx_mp_ctrlram.o \
+		nt36xxx_sysfs.o
 else
 	KDIR = $(OUT)/obj/KERNEL_OBJ
 	CROSS_COMPILE = $(ANDROID_TOOLCHAIN)/aarch64-linux-android-
