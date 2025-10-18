@@ -8,14 +8,16 @@
 #include <linux/fs.h>
 #include "nt36xxx.h"
 
-static int switch_firmware = 0;
+extern struct kobject *touchpanel_kobj;
 
-static ssize_t switch_firmware_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+static int tpfirmware = 0;
+
+static ssize_t tpfirmware_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-    return sprintf(buf, "%d\n", switch_firmware);
+    return sprintf(buf, "%d\n", tpfirmware);
 }
 
-static ssize_t switch_firmware_store(struct kobject *kobj, struct kobj_attribute *attr,
+static ssize_t tpfirmware_store(struct kobject *kobj, struct kobj_attribute *attr,
                                       const char *buf, size_t count)
 {
     int new_value;
@@ -23,10 +25,10 @@ static ssize_t switch_firmware_store(struct kobject *kobj, struct kobj_attribute
     if (sscanf(buf, "%d", &new_value) != 1)
         return -EINVAL;
 
-    if (new_value != switch_firmware) {
-        switch_firmware = new_value;
+    if (new_value != tpfirmware) {
+        tpfirmware = new_value;
 
-        if (switch_firmware == 1) {
+        if (tpfirmware == 1) {
             ts->fw_name = "novatek_nt36523_k81a_fw01_new.bin";
         } else {
             ts->fw_name = "novatek_nt36523_k81_fw01.bin";
@@ -36,25 +38,16 @@ static ssize_t switch_firmware_store(struct kobject *kobj, struct kobj_attribute
     return count;
 }
 
-static struct kobj_attribute switch_firmware_attribute = __ATTR(switch_firmware, 0664, switch_firmware_show, switch_firmware_store);
+static struct kobj_attribute tpfirmware_attribute = __ATTR(tpfirmware, 0664, tpfirmware_show, tpfirmware_store);
 
 static struct kobject *nt36523_kobject;
 
 static int __init nt36523_sysfs_init(void)
 {
-    int retval;
+    if (!touchpanel_kobj)
+        return -ENODEV;
 
-    nt36523_kobject = kobject_create_and_add("touchpanel", kernel_kobj);
-    if (!nt36523_kobject)
-        return -ENOMEM;
-
-    retval = sysfs_create_file(nt36523_kobject, &switch_firmware_attribute.attr);
-    if (retval) {
-        kobject_put(nt36523_kobject);
-        return retval;
-    }
-
-    return 0;
+    return sysfs_create_file(touchpanel_kobj, &tpfirmware_attribute.attr);
 }
 
 static void __exit nt36523_sysfs_exit(void)
