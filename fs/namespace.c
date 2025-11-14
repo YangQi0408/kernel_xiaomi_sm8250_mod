@@ -1977,9 +1977,9 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
 					int flag)
 {
 	struct mount *res, *p, *q, *r, *parent;
-	#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	bool is_current_zygote_domain = susfs_is_current_zygote_domain();
-	#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	bool is_zygote_not_copy_mnt_ns = (susfs_is_current_zygote_domain() && !(flag & CL_COPY_MNT_NS));
+#endif
 
 	if (!(flag & CL_COPY_UNBINDABLE) && IS_MNT_UNBINDABLE(mnt))
 		return ERR_PTR(-EINVAL);
@@ -2032,15 +2032,14 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
 			lock_mount_hash();
 			list_add_tail(&q->mnt_list, &res->mnt_list);
 			attach_mnt(q, parent, p->mnt_mp);
-			#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-			if (is_current_zygote_domain &&
-				!(flag & CL_COPY_MNT_NS) &&
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+			if (is_zygote_not_copy_mnt_ns &&
 				q->mnt_id < DEFAULT_SUS_MNT_ID)
 			{
 				attach_mnt_count++;
 				q->mnt_id += attach_mnt_count;
 			}
-			#endif
+#endif
 			unlock_mount_hash();
 		}
 	}
@@ -3253,6 +3252,12 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
 	 */
 	p = old;
 	q = new;
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	if (likely(is_zygote_pid)) {
+		last_entry_mnt_id = new->mnt_id;
+		q->mnt.susfs_mnt_id_backup = new->mnt_id;
+	}
+#endif
 	while (p) {
 		q->mnt_ns = new_ns;
 		new_ns->mounts++;
@@ -3274,21 +3279,13 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
 			p = next_mnt(p, old);
 	}
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	// q->mnt.susfs_mnt_id_backup -> original mnt_id
-	// q->mnt_id -> will be modified to the fake mnt_id
-
-	// Here We are only interested in processes of which original mnt namespace belongs to zygote 
-	// Also we just make use of existing 'q' mount pointer, no need to delcare extra mount pointer
-	if (is_zygote_pid) {
-		last_entry_mnt_id = list_first_entry(&new_ns->list, struct mount, mnt_list)->mnt_id;
-		list_for_each_entry(q, &new_ns->list, mnt_list) {
-			if (unlikely(q->mnt_id >= DEFAULT_SUS_MNT_ID)) {
-				continue;
-			}
+		// Here We are only interested in processes of which original mnt namespace belongs to zygote 
+		if (likely(is_zygote_pid && (q->mnt_id < DEFAULT_SUS_MNT_ID))) {
+			// q->mnt.susfs_mnt_id_backup -> original mnt_id
+			// q->mnt_id -> to be modified to the fake mnt_id
 			q->mnt.susfs_mnt_id_backup = q->mnt_id;
-			q->mnt_id = last_entry_mnt_id++;
+			q->mnt_id = ++last_entry_mnt_id;
 		}
-	}
 #endif
 
 	namespace_unlock();
