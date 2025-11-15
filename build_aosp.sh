@@ -46,13 +46,12 @@ make CC="ccache clang" CXX="ccache clang++" $MAKE_ARGS enuma_defconfig
 scripts/config --file out/.config \
     -d CC_WERROR \
     -e KSU \
-    -e KSU_TRACEPOINT_HOOK \
+    -e KSU_MANUAL_HOOK \
     -e KSU_SUSFS_HAS_MAGIC_MOUNT \
     -e KSU_SUSFS \
     -e KPM
 
 make CC="ccache clang" CXX="ccache clang++" $MAKE_ARGS -j$(nproc)
-
 
 if [ -f "out/arch/arm64/boot/Image" ]; then
     echo "The file [out/arch/arm64/boot/Image] exists. AOSP Build successfully."
@@ -70,7 +69,7 @@ mkdir -p anykernel/kernels/
 
 # Patch for SukiSU KPM support. 
 cd out/arch/arm64/boot/
-wget https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
+wget https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.2/patch_linux
 chmod +x patch_linux
 ./patch_linux
 rm Image
