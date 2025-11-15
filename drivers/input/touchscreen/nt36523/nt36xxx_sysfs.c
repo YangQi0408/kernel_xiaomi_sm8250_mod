@@ -29,9 +29,9 @@ static ssize_t game_mode_store(struct kobject *kobj, struct kobj_attribute *attr
         game_mode = new_value;
 
         if (game_mode == 1) {
-            ts->fw_name = "novatek_nt36523_k81a_fw01_new.bin";
+            ts->fw_name = "novatek_nt36523_k81a_fw01_a11.bin";
         } else {
-            ts->fw_name = "novatek_nt36523_k81_fw01.bin";
+            ts->fw_name = "novatek_nt36523_k81a_fw01.bin";
         }
     }
 
