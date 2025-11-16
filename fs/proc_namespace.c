@@ -22,11 +22,7 @@
 #include "internal.h"
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-extern bool susfs_is_current_ksu_domain(void);
-#endif
-
-#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-bool susfs_hide_sus_mnts_for_all_procs = true; // hide sus mounts for all processes by default
+extern bool susfs_hide_sus_mnts_for_all_procs;
 #endif
 
 static __poll_t mounts_poll(struct file *file, poll_table *wait)
