@@ -107,7 +107,6 @@ make CC="ccache clang" CXX="ccache clang++" $MAKE_ARGS enuma_defconfig
 scripts/config --file out/.config \
     -d CC_WERROR \
     -e KSU \
-    -e KSU_MANUAL_HOOK \
     -e KSU_SUSFS_HAS_MAGIC_MOUNT \
     -e KSU_SUSFS \
     -e KPM
