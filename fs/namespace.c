@@ -26,29 +26,22 @@
 #include <linux/bootmem.h>
 #include <linux/task_work.h>
 #include <linux/sched/task.h>
-#if defined(CONFIG_KSU_SUSFS_SUS_MOUNT) || defined(CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT)
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 #include <linux/susfs_def.h>
-#endif
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
 #include "pnode.h"
 #include "internal.h"
 
-#if defined(CONFIG_KSU_SUSFS_SUS_MOUNT) || defined(CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT)
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 extern bool susfs_is_current_ksu_domain(void);
 extern bool susfs_is_boot_completed_triggered;
-#endif // #if defined(CONFIG_KSU_SUSFS_SUS_MOUNT) || defined(CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT)
 
-#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 static DEFINE_IDA(susfs_ksu_mnt_group_ida);
 static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);
 
 #define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-
-#ifdef CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
-extern void susfs_auto_add_try_umount_for_bind_mount(struct path *path);
-bool susfs_is_auto_add_try_umount_for_bind_mount_enabled = true;
-#endif // #ifdef CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
 
 /* Maximum number of mounts in a mount namespace */
 unsigned int sysctl_mount_max __read_mostly = 100000;
@@ -2502,18 +2495,6 @@ static int do_loopback(struct path *path, const char *old_name,
 		umount_tree(mnt, UMOUNT_SYNC);
 		unlock_mount_hash();
 	}
-#ifdef CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
-	// - Check if bind mounted path should be umounted automatically.
-	// - We keep checking for ksu process only until boot-completed stage is triggered
-	if (!susfs_is_boot_completed_triggered &&
-		 susfs_is_current_ksu_domain() &&
-		 susfs_is_auto_add_try_umount_for_bind_mount_enabled)
-	{
-
-		susfs_auto_add_try_umount_for_bind_mount(path);
-	}
-#endif // #ifdef CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
-
 out2:
 	unlock_mount(mp);
 out:
